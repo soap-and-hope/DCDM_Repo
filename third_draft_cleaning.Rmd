@@ -1,0 +1,316 @@
+---
+title: "final_cleaning"
+output: html_document
+date: "2024-12-27"
+---
+
+#### **Downloading packages**
+
+```{r}
+install.packages("tidyr")
+install.packages("dplyr")
+library(tidyr)
+library(dplyr)
+```
+
+#### **Loading data**
+
+```{r}
+getwd()
+setwd("~/Desktop/working/directory/Group5")
+
+
+files <- list.files(path = 'original_data', pattern='csv', full.names = TRUE)
+print(files[1:3]) #prints first three files
+
+sample_dat <- lapply((files), function(x){
+  read.csv(x, header=FALSE, sep=",", row.names = 1)})
+View(sample_dat)
+
+
+print(sample_dat [1:3])
+#NB: When working with larger files (e.g., when we do the whole dataset) can use the fread function from the data.table function instead
+
+```
+
+#### **Ordering the row names**
+
+```{r}
+sample_dat_ordered <- lapply((sample_dat), function(y){
+  y[order(row.names(y)), , drop=FALSE]
+}) #Sort rows by their row names and orders them so they are all presented in the same order 
+
+#drop = FALSE prevents them from being dropped/removed - losing dimension as a dataframe
+#NB: did not check for missing rownames or duplicated rownames
+```
+
+```{r}
+print(sample_dat_ordered[1:3])
+View(sample_dat_ordered)
+
+```
+
+#### **Rearranging the data using Tidyr**
+
+```{r}
+sample_dat_ordered <- as.data.frame(sample_dat_ordered) #convert into dataframe to make it quicker and more efficient to bind
+new_sample_dat <- bind_cols(sample_dat_ordered)
+new_sample_dat <- t(new_sample_dat)
+View(new_sample_dat)
+typeof(new_sample_dat)
+
+
+is.data.frame(new_sample_dat) #FALSE
+is.list(new_sample_dat) #FALSE 
+
+#Currently character not dataframe so convert into dataframe 
+new_sample_dat <- as.data.frame(new_sample_dat)
+is.data.frame(new_sample_dat) #TRUE
+
+new_sample_dat <- as.data.frame(lapply(new_sample_dat, type.convert, as.is = TRUE)) #Converts all the data in each column into the right datatypes
+View(new_sample_dat)
+
+```
+
+#### **Data Cleaning Step 1: Checking uniqueness of categories**
+
+```{r}
+
+#Check for NA's in all columns 
+for (n in colnames(new_sample_dat)){
+  print(sum(is.na(new_sample_dat[[n]])))
+}
+# 0 across all columns - No NA's found 
+```
+
+```{r echo=TRUE}
+#First checking mouse_life_stages
+print(unique(new_sample_dat[4])) #checking all inputted life stages
+```
+
+No abnormal life stages - no need for further cleaning
+
+#### **Checking mouse_strain**
+
+```{r}
+print(unique(new_sample_dat[5]))
+print(unique(new_sample_dat[5] == 'C3H')) #[1] FALSE - there are no C3H strains
+#21 unique values; should be 3 - need to remove 18
+
+sub_dat <- subset(new_sample_dat,mouse_strain %in% c('C57BL','129SV', 'C3H','B6J' ))
+
+print(unique(sub_dat[5])) #Now we only have data files with either C57Bl, 129SV or B6J
+View(sub_dat)
+```
+
+``` r
+Description:df [21 × 1]
+ 
+ 
+mouse_strain
+<chr>
+1   C57BL           
+2   C54BL           
+5   C50BL           
+108 C58BL           
+137 129SV           
+215 B6J         
+291 C53BL           
+349 C56BL           
+1271    C52BL           
+1713    C51BL           
+1-10 of 21 rows
+```
+
+#### **Checking p-value**
+
+```{r}
+min(sub_dat[8]) #checking the minimum p-value stored [1] 0 -> so it's within range
+max(sub_dat[8]) #checking the maximum p-value stored [1] 1.499989 - so we need to restrict it to 1
+
+sub_dat[8] <- mapply(function(x) min(1,x),sub_dat[[8]])
+max(sub_dat[8]) # [1] 1 - now  within range
+
+```
+
+#### **Checking gene_accession_id**
+
+```{r}
+#Check format of gene_accession_id 
+#a. length = 9-11
+#gene_accession_id is in column 2 
+id_column <- sub_dat[[2]]
+print(id_column)
+
+# Count rows where the ID length is shorter than 9 or longer than 11
+id_length <- (which(nchar(id_column) < 9 | nchar(id_column) > 11))
+print(sub_dat[id_length,]) #Nothing printed so they are all the right length 
+
+```
+
+#### **Checking for duplicated entries for gene symbol and gene accession_id**
+
+-   Relationship between gene_accession_id and gene_symbol should be one-to-one
+
+```{r}
+print(unique(sub_dat[3])) #[1] 393 unique genes_symbols
+print(unique(sub_dat[2])) #[1] 200 unique gene_accession_id
+
+#Multiple gene symbols being used for one gene_accession_id 
+#We need to find which gene id's have multiple gene symbols 
+
+id_and_symbol_dat <- unique(sub_dat[2:3]) #paired dataframe containing all unique values of gene symbols and accession ids.
+print(id_and_symbol_dat)
+
+id_symbols <- aggregate(id_and_symbol_dat[2],list(gene_id = id_and_symbol_dat$gene_accession_id),function(x) x)
+View(id_symbols) #aggregate - group of paired sets
+
+print(unique(mapply(length,id_symbols$gene_symbol))) #[1] 1 2 - for each accession id it either has one gene symbol input or two gene symbol input => there are no more than two genes for each id. 
+
+dup_flag <- mapply(function(x) length(x) > 1,id_symbols$gene_symbol)
+dup_genes <- subset(id_symbols,dup_flag)
+print(dup_genes)
+
+```
+
+``` r
+sub_dat$gene_accession_id sub_dat$gene_symbol
+1 MGI:103225               c("Cyp4b1", "CYP4B1")
+2 MGI:104629               c("Penk", "PENK")
+3 MGI:105304               c("Il6ra", "IL6RA")
+4 MGI:106924               c("Melk", "MELK")
+5 MGI:107164               c("Ppp3ca", "PPP3CA")
+```
+
+-   All duplications are due to differences in entries as lower case and upper case - can remove the uppercase entries and replace with lowercase
+
+```{r}
+install.packages("stringr")
+library(stringr)
+apply_lower_case <- str_to_title(sub_dat$gene_symbol) #str_to_title function from stringr capitalizes the first character and applies lowercase on rest of string
+sub_dat$gene_symbol <- apply_lower_case
+View(sub_dat)
+
+print(unique(sub_dat[3])) #[1] 200 - matches the number of unique gene accession_ids
+```
+
+#### **Checking for entirely duplicated entries**
+
+- are there any complete duplicated rows (all 8 cols identical values) - FALSE
+- are there multiple rows for the same phenotype & mouse model (all cols except analysis_id identical) - TRUE
+- many experiment repeats for the same mouse model & phenotype (diff analysis_id & pvalue)
+- also present are duplicated entries (diff analysis_id, same pvalue)
+
+```{r, echo=TRUE}
+
+#### checking for complete identical entries 
+# method 1
+all_cols <- c("analysis_id","gene_accession_id","gene_symbol","mouse_life_stage","mouse_strain","parameter_id","parameter_name")
+
+complete_duplicates <- sub_dat %>%
+  group_by(across(all_of(all_cols))) %>%
+  filter(n_distinct(pvalue) > 1) %>% #keep grps with distinct p-values 
+  ungroup()
+
+View(complete_duplicates) #no complete duplicates  
+
+# method 2
+print(unique(sub_dat[1])) #[1] 193,098 - no duplicated analysis_id 
+
+
+#### checking for multiple entries for the same mouse model & phenotype - do they have pvalue duplicates ?
+subset_cols <- c("gene_accession_id","gene_symbol","mouse_life_stage","mouse_strain","parameter_id","parameter_name")
+
+check <- sub_dat %>%
+  group_by(across(all_of(subset_cols))) %>%  # Group by identical columns
+  summarise(count = n(), unique_p_values = n_distinct(pvalue), .groups = "drop") %>% #count no. of repeats & unique pvalues
+  filter(unique_p_values > 1) #keeps groups with distinct pvalues
+
+View(check)
+
+# Filter rows where 'count' is not equal to 'unique_p_value'
+mismatched_rows <- check %>% 
+  filter(count != unique_p_values)
+# Print the mismatched rows
+View(mismatched_rows)
+
+#identifies all entries where duplications are present, as well as alternative experimental pvalues 
+
+```
+
+#### **Checking for duplicated p-values of entries with the same column values excluding analysis_id**
+
+```{r}
+
+### Method One to try and identify the duplicated p-values
+print(unique(sub_dat[8])) #[1] 173,305 unique p-values however although they may be unique they may be for the same exact gene, strain,life stage, and parameter -> currently there are 193,098 entries in total so need to remove 19,793 duplicates 
+
+#duplicated_p_value <- function(x){
+  #x <- sub_dat[duplicated(sub_dat$pvalue),]
+#} 
+
+#duplicated_p_value <- sub_dat[duplicated(sub_dat[8]),]
+#View(duplicated_p_value)
+#View(unique(duplicated_p_value[8]))
+
+#This doesn't identify duplicated pvalues of specifically the ones with the same gene id, symbol, strain, life stage, parameter id and name; just duplicated pvalues in the entire dataset so there could be two different entries with the same value - not selective 
+
+
+### Method Two - trying via grouping columns 2-6 
+library(dplyr) #Required for the group_by function
+grouped_gene_id_and_symbol <- sub_dat %>%
+  group_by(gene_accession_id, gene_symbol, mouse_life_stage, mouse_strain, parameter_id, parameter_name) %>%
+  filter(duplicated(pvalue) | duplicated(pvalue, fromLast = TRUE)) %>% 
+  slice(1) %>%
+  ungroup()
+View(grouped_gene_id_and_symbol) 
+
+#Testing on sub_dat to see if the duplicated rows correlate 
+print(subset(sub_dat, sub_dat$gene_symbol== "Ndufs1" & sub_dat$parameter_name == "Total protein")) #prints both duplicates
+
+print(subset(grouped_gene_id_and_symbol, grouped_gene_id_and_symbol$gene_symbol== "Ndufs1" & grouped_gene_id_and_symbol$parameter_name == "Total protein")) #prints only the one record it retained which is the first duplicate it came across with the analysis_id 00096jlj53g968z
+
+```
+
+There is an entry in the grouped_gene_id_symbol for the Ndufs1 gene_symbol where parameter_name was Total protein - there were no other duplicates found for Ndufs1 so this is the only duplicate associated with this gene. Checked sub_dat and two entries were printed with the same p-value
+
+-   `slice(1)` : Makes it so it only stores the record including the analysis_id of the first duplicate it comes across
+
+```{r}
+
+### Method Three - Alternative method from other group members 
+repeated_rows <- sub_dat %>%
+  group_by(across(2:8)) %>% #groups all identical cols except analysis_id
+  filter(n() > 1) %>% #keep rows that have been repeated 
+  ungroup() 
+  
+View(repeated_rows) #38,046 rows of duplicates
+
+
+# check all pvalues appear at least twice 
+single_occurrence_check <- repeated_rows %>%
+  group_by(pvalue) %>%  # Group by pvalue
+  summarise(count = n(), .groups = "drop")  # Count occurrences of each pvalue
+ 
+View(single_occurrence_check)
+
+```
+
+
+#### **Removing duplicates from the sub_dat dataset**
+
+```{r}
+sub_dat_2 <- anti_join(sub_dat, grouped_gene_id_and_symbol) #uses the duplicate data frame to only retained values that are NOT in the duplicate dataset
+View(sub_dat_2) 
+#anti_join for dplyr package
+print(subset(sub_dat_2, sub_dat_2$gene_symbol== "Ndufs1" & sub_dat_2$parameter_name == "Total protein")) #Only one copy - all duplicates have been removed
+
+```
+
+#### **Writing cleaned dataset as .csv to push into HPC**
+
+```{r}
+#saving cleaned data as csv file for push into HPC
+write.csv(sub_dat_2,"/Users/path/to/directory/final_cleaned_data.csv", row.names=FALSE, quote=FALSE) 
+
+```
