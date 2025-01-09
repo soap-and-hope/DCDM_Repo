@@ -7,12 +7,12 @@
 CREATE TABLE `Mouse` (
     `parameter_id` VARCHAR(255) NOT NULL,  -- Unique identifier for each parameter
     `gene_accession_id` VARCHAR(255) NOT NULL,  -- Accession ID of the associated gene
-    `analysis_id` VARCHAR(255) NOT NULL,  -- ID for the analysis performed
-    `parameter_name` VARCHAR(255) DEFAULT NULL,  -- Name of the parameter
+    `analysis_id` VARCHAR(255) NOT NULL,
+    `parameter_name` VARCHAR(255) DEFAULT NULL,
     `pvalue` DOUBLE NULL,  -- P-value from the analysis (statistical significance)
-    `gene_symbol` VARCHAR(50) NOT NULL,  -- Symbol representing the gene
-    `mouse_strain` VARCHAR(50) NOT NULL,  -- Strain of the mouse used in the analysis
-    `mouse_life_stage` VARCHAR(50) NOT NULL,  -- Life stage of the mouse
+    `gene_symbol` VARCHAR(50) NOT NULL,
+    `mouse_strain` VARCHAR(50) NOT NULL,
+    `mouse_life_stage` VARCHAR(50) NOT NULL,  -- Life stage of the mouse (E.g. Adult) 
     
     -- Defining a composite primary key on parameter_id and analysis_id. A composite primary key ensures that each combination of parameter and analysis is unique.
     PRIMARY KEY (`parameter_id`, `analysis_id`)
@@ -24,9 +24,9 @@ The composite primary key (parameter_id, analysis_id) ensures that each combinat
 ```sql
 -- Create the Phenotype table
 CREATE TABLE `Phenotype` (
-    `parameter_id` VARCHAR(255) NOT NULL,  -- Unique identifier for each parameter
-    `parameter_name` VARCHAR(255) NOT NULL,  -- Name of the parameter
-    `parameter_description` TEXT,  -- Detailed description of the parameter
+    `parameter_id` VARCHAR(255) NOT NULL,
+    `parameter_name` VARCHAR(255) NOT NULL,
+    `parameter_description` TEXT,
     `impc_parameter_orig_id` VARCHAR(255) NOT NULL,  -- Original IMPc parameter ID
     `parameter_group_id` INT(11) DEFAULT NULL,  -- Foreign key linking to the Parameter_Group table
     
@@ -48,9 +48,9 @@ Foreign Key Constraint: The parameter_group_id column references the parameter_g
 ```sql
 -- Create the Procedures table
 CREATE TABLE `Procedures` (
-    `procedure_name` VARCHAR(255) DEFAULT NULL,  -- Name of the procedure
-    `procedure_description` TEXT,  -- Detailed description of the procedure
-    `is_mandatory` TINYINT(1) NOT NULL,  -- Flag indicating whether the procedure is mandatory (1 = Yes, 0 = No)
+    `procedure_name` VARCHAR(255) DEFAULT NULL,
+    `procedure_description` TEXT, 
+    `is_mandatory` TINYINT(1) NOT NULL,  -- Indicating whether the procedure is mandatory (1 = Yes, 0 = No)
     `impc_parameter_orig_id` VARCHAR(255) NOT NULL,  -- Original IMPc parameter ID linked to this procedure
     
     -- Defining the primary key on impc_parameter_orig_id
@@ -66,9 +66,9 @@ The is_mandatory column uses a TINYINT(1) data type to store binary values (1 fo
 ```sql
 -- Create the Human_Disease table
 CREATE TABLE `Human_Disease` (
-    `disease_id` VARCHAR(255) NOT NULL,  -- Unique identifier for each disease
-    `gene_accession_id` VARCHAR(255) NOT NULL,  -- Accession ID of the associated gene
-    `disease_term` TEXT NOT NULL,  -- Description or name of the disease
+    `disease_id` VARCHAR(255) NOT NULL,
+    `gene_accession_id` VARCHAR(255) NOT NULL,
+    `disease_term` TEXT NOT NULL,
     `phenodigm_score` DOUBLE DEFAULT NULL,  -- Phenodigm score indicating phenotype similarity between human and mouse
     
     -- Defining the primary key on disease_id
@@ -81,7 +81,7 @@ CREATE TABLE `Human_Disease` (
 -- Create the Parameter_Group table
 CREATE TABLE `Parameter_Group` (
     `parameter_group_id` INT(11) NOT NULL AUTO_INCREMENT,  -- Auto-incremented unique ID for each parameter group
-    `group_name` VARCHAR(255) NOT NULL,  -- Name of the parameter group
+    `group_name` VARCHAR(255) NOT NULL,
     
     -- Defining the primary key on parameter_group_id
     PRIMARY KEY (`parameter_group_id`)
